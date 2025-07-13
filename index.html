@@ -1,0 +1,244 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reloj Analógico con Hora Digital</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      transition: background-color 1s;
+      font-family: Arial, sans-serif;
+    }
+    .day {
+      background-color: #f4e4bc;
+    }
+    .night {
+      background-color: #1a1a2e;
+    }
+    .clock-container {
+      text-align: center;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    #clock {
+      display: block;
+      margin: 0 auto 20px;
+    }
+    #digital-clock {
+      font-size: 1.5em;
+      color: #fff;
+      background-color: #333;
+      padding: 10px;
+      border-radius: 5px;
+      margin-top: 10px;
+    }
+    select {
+      padding: 10px;
+      font-size: 1em;
+      margin-top: 10px;
+      border-radius: 5px;
+      border: none;
+      cursor: pointer;
+      background-color: #fff;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    }
+    .credits {
+      font-size: 0.8em;
+      color: #000;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="clock-container">
+    <canvas id="clock" width="400" height="400"></canvas>
+    <div id="digital-clock">16:04:00</div>
+    <select id="faceColor" onchange="updateClock()">
+      <option value="#1a1a2e">Negro</option>
+      <option value="#2e2e2e">Gris Oscuro</option>
+      <option value="#1e3a5f">Azul Oscuro</option>
+    </select>
+    <div class="credits">Creado por AD y AR</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('clock');
+    const ctx = canvas.getContext('2d');
+    const digitalClock = document.getElementById('digital-clock');
+    let faceColor = '#1a1a2e';
+    const romanNumerals = ['XII', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+
+    function drawClock() {
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const seconds = now.getSeconds();
+
+      // Cambiar tema según la hora
+      document.body.className = hours >= 6 && hours < 18 ? 'day' : 'night';
+
+      // Actualizar hora digital
+      digitalClock.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+
+      // Limpiar el lienzo
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Dibujar bisel metálico con taquímetro
+      const bezelGradient = ctx.createRadialGradient(200, 200, 180, 200, 200, 200);
+      bezelGradient.addColorStop(0, '#d9d9d9');
+      bezelGradient.addColorStop(0.7, '#8c8c8c');
+      bezelGradient.addColorStop(1, '#d9d9d9');
+      ctx.beginPath();
+      ctx.arc(200, 200, 195, 0, 2 * Math.PI);
+      ctx.fillStyle = bezelGradient;
+      ctx.fill();
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 5;
+      ctx.stroke();
+
+      // Dibujar marcas de taquímetro en el bisel
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 60; i++) {
+        const angle = (i * 6 - 90) * Math.PI / 180;
+        if (i % 5 === 0) {
+          ctx.beginPath();
+          ctx.moveTo(200 + 190 * Math.cos(angle), 200 + 190 * Math.sin(angle));
+          ctx.lineTo(200 + 180 * Math.cos(angle), 200 + 180 * Math.sin(angle));
+          ctx.stroke();
+          if (i % 15 === 0) {
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText((i === 0 ? 60 : i), 200 + 170 * Math.cos(angle), 200 + 170 * Math.sin(angle));
+          }
+        }
+      }
+
+      // Dibujar esfera
+      ctx.beginPath();
+      ctx.arc(200, 200, 180, 0, 2 * Math.PI);
+      ctx.fillStyle = faceColor;
+      ctx.fill();
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Sombra interior para efecto 3D
+      ctx.beginPath();
+      ctx.arc(200, 200, 180, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      ctx.lineWidth = 10;
+      ctx.stroke();
+
+      // Dibujar marcas de horas y minutos
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 60; i++) {
+        const angle = (i * 6 - 90) * Math.PI / 180;
+        ctx.beginPath();
+        ctx.moveTo(200 + 170 * Math.cos(angle), 200 + 170 * Math.sin(angle));
+        ctx.lineTo(200 + (i % 5 === 0 ? 160 : 165) * Math.cos(angle), 200 + (i % 5 === 0 ? 160 : 165) * Math.sin(angle));
+        ctx.stroke();
+      }
+
+      // Dibujar números romanos
+      ctx.fillStyle = '#fff';
+      ctx.font = '18px Georgia';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < 12; i++) {
+        const angle = (i * 30 - 90) * Math.PI / 180;
+        ctx.fillText(romanNumerals[i], 200 + 150 * Math.cos(angle), 200 + 150 * Math.sin(angle));
+      }
+
+      // Dibujar manecilla de horas
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      const hourAngle = ((hours % 12 + minutes / 60) * 30) * Math.PI / 180;
+      ctx.moveTo(200, 200);
+      ctx.lineTo(200 + 100 * Math.cos(hourAngle - Math.PI / 2), 200 + 100 * Math.sin(hourAngle - Math.PI / 2));
+      ctx.stroke();
+
+      // Dibujar manecilla de minutos
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      const minuteAngle = ((minutes + seconds / 60) * 6) * Math.PI / 180;
+      ctx.moveTo(200, 200);
+      ctx.lineTo(200 + 140 * Math.cos(minuteAngle - Math.PI / 2), 200 + 140 * Math.sin(minuteAngle - Math.PI / 2));
+      ctx.stroke();
+
+      // Dibujar manecilla de segundos
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const secondAngle = (seconds * 6) * Math.PI / 180;
+      ctx.moveTo(200, 200);
+      ctx.lineTo(200 + 150 * Math.cos(secondAngle - Math.PI / 2), 200 + 150 * Math.sin(secondAngle - Math.PI / 2));
+      ctx.stroke();
+
+      // Centro del reloj (solo un punto pequeño)
+      ctx.beginPath();
+      ctx.arc(200, 200, 5, 0, 2 * Math.PI);
+      ctx.fillStyle = '#fff';
+      ctx.fill();
+    }
+
+    function updateClock() {
+      faceColor = document.getElementById('faceColor').value;
+      drawClock();
+    }
+
+    setInterval(drawClock, 1000);
+    drawClock();
+  </script>
+</body>
+</html>
